@@ -3,7 +3,8 @@ const panels = [
     title: 'Que Signal',
     bullets: [
       'Hovedsiden med knappene Start og Stopp.',
-      'Trykk på en knapp for å sende et signal til n8n-arbeidsflyten.',
+      'Hold inne Start eller Stopp i ett sekund for å registrere tidspunkt (korte trykk avvises).',
+      'Hvis flere trykk på samme knapp registreres etterhverandre, så vil det SISTE registreres som gyldig.',
       'Statusvinduet viser de fire siste registrerte trykkene med dato og tid.',
     ],
   },
@@ -14,15 +15,7 @@ const panels = [
       'Passordet sjekkes på klient-siden og holder økten levende i samme nettleserfane.',
       'Trykk på «Logg ut» i menyen for å avslutte økten.',
     ],
-  },
-  {
-    title: 'Integrasjon med n8n',
-    bullets: [
-      'Knapper kaller en intern backend som videresender til n8n via en skjult webhook.',
-      'Webhook-URL og eventuell autentisering holdes på serveren, ikke i nettleseren.',
-      'Statusvinduet bekrefter når signalet er sendt; feilmeldinger fra server eller n8n vises i rødt.',
-    ],
-  },
+  }
 ]
 
 export default function About({ onClose }) {
@@ -31,7 +24,7 @@ export default function About({ onClose }) {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Om Speaker Cue Point</h1>
         <p className="text-sm text-slate-400">
-          Enkel mobilvennlig webapp for å utløse cue-signaler mot en n8n-arbeidsflyt.
+          Mobilvennlig webapp for å registrere tidspunkter for tale i gudstjeneste.
         </p>
       </div>
 

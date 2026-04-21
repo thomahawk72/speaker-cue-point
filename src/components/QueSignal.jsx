@@ -51,7 +51,7 @@ export default function QueSignal() {
             label={b.label}
             variant={b.variant}
             loading={pending === b.id}
-            onClick={() => handleClick(b)}
+            onHoldComplete={() => handleClick(b)}
           />
         ))}
       </div>

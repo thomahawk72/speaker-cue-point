@@ -120,6 +120,24 @@ siste tilgjengelige LTS som matcher.
 
 `type` er `start` eller `stopp` (avledet fra `action`). `epoch` er millisekunder siden Unix epoch (samme tidspunkt som `triggeredAt`).
 
+### Registrering i tabell `que_signals` (n8n)
+
+Backend gjør **ingen** sammenligning mot databasen; alt skjer i n8n (og evt. SQL).
+
+La **siste rad** være den nyeste i tabellen (f.eks. `ORDER BY id DESC LIMIT 1` eller etter `registrert_tid`).
+
+| Situasjon | Handling |
+|-----------|----------|
+| Tabellen er tom | **INSERT** ny rad med `signaltype` = innkommende `type`, `epoch` = innkommende `epoch`. |
+| Innkommende `type` ≠ `signaltype` på siste rad | **INSERT** ny rad (nytt innslag). |
+| Innkommende `type` = `signaltype` på siste rad | **Ikke** ny rad. **UPDATE** siste rad: sett `epoch` til innkommende `epoch` (siste tidspunkt for den pågående «økten» med samme type). |
+
+**Merk:** Gjentatte **start** (eller **stopp**) uten at typen veksler, oppdaterer altså bare `epoch` på den eksisterende siste raden. Når typen **bytter** (start → stopp eller omvendt), opprettes alltid en ny rad.
+
+**Implementasjon i n8n (typisk):** Webhook → hent siste rad (Postgres/MySQL) → **If** (tom / ulik type / lik type) → **Insert** eller **Update** på id til siste rad.
+
+**Valgfritt (Postgres):** Én databasefunksjon kan gjøre dette atomisk i én transaksjon, slik at du unngår løpspill mellom les og skriv.
+
 ## API
 
 ### `GET /api/health`
