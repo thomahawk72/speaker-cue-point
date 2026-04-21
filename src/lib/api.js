@@ -1,3 +1,23 @@
+function messageFromTriggerError(data, httpStatus) {
+  if (data?.message) return data.message
+  if (data?.error === 'n8n_error') {
+    const inner = data.data
+    if (inner?.raw && typeof inner.raw === 'string') return inner.raw.trim()
+    if (typeof inner?.message === 'string') return inner.message
+    return `n8n svarte med HTTP ${data.status ?? httpStatus}`
+  }
+  if (data?.error === 'n8n_not_configured') {
+    return data.message || 'N8N_WEBHOOK_URL er ikke satt på serveren.'
+  }
+  if (data?.error === 'n8n_timeout' || data?.error === 'n8n_unreachable') {
+    return data.message || 'Kunne ikke fullføre kallet til n8n.'
+  }
+  if (data?.error === 'unknown_action') {
+    return data.message || 'Ukjent aksjon.'
+  }
+  return `Feil (HTTP ${httpStatus})`
+}
+
 export async function triggerAction(action) {
   const res = await fetch('/api/trigger', {
     method: 'POST',
@@ -13,7 +33,7 @@ export async function triggerAction(action) {
   }
 
   if (!res.ok) {
-    const err = new Error(data?.message || `HTTP ${res.status}`)
+    const err = new Error(messageFromTriggerError(data, res.status))
     err.status = res.status
     err.data = data
     throw err

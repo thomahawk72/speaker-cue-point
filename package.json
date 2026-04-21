@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev:client": "vite",
-    "dev:server": "node --env-file=.env --watch server.js",
+    "dev:server": "node --watch server.js",
     "dev": "concurrently -n client,server -c cyan,magenta \"npm:dev:client\" \"npm:dev:server\"",
     "build": "vite build",
     "start": "node server.js",
@@ -16,6 +16,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"

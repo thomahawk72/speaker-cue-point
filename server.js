@@ -1,8 +1,11 @@
+import dotenv from 'dotenv'
 import express from 'express'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+// Last .env fra prosjektmappa uansett cwd / startkommando (npm start, node server.js, osv.)
+dotenv.config({ path: path.join(__dirname, '.env') })
 
 const PORT = process.env.PORT || 3001
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL
@@ -53,11 +56,13 @@ app.post('/api/trigger', async (req, res) => {
     if (N8N_AUTH_HEADER) headers[N8N_WEBHOOK_AUTH_HEADER_NAME] = N8N_AUTH_HEADER
 
     const epoch = Date.now()
+    const type = action === 'cue_start' ? 'start' : 'stopp'
     const n8nRes = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         action,
+        type,
         triggeredAt: new Date(epoch).toISOString(),
         epoch,
       }),

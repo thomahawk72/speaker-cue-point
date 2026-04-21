@@ -24,7 +24,8 @@ browser ──(POST /api/trigger)──> Express (server.js) ──(POST)──>
    npm install
    ```
 
-2. Lag `.env` basert på `.env.example`:
+2. Lag `.env` basert på `.env.example` (i prosjektmappen). `server.js` laster
+   den automatisk med `dotenv`, også når du kjører `npm start` eller `node server.js`.
 
    ```bash
    cp .env.example .env
@@ -105,12 +106,13 @@ siste tilgjengelige LTS som matcher.
 ```json
 {
   "action": "cue_start",
+  "type": "start",
   "triggeredAt": "2026-04-20T12:34:56.789Z",
   "epoch": 1713616496789
 }
 ```
 
-`epoch` er millisekunder siden Unix epoch (samme tidspunkt som `triggeredAt`).
+`type` er `start` eller `stopp` (avledet fra `action`). `epoch` er millisekunder siden Unix epoch (samme tidspunkt som `triggeredAt`).
 
 ## API
 
@@ -130,7 +132,7 @@ Body (fra nettleseren):
 
 Tillatte `action`-verdier er hardkodet i `server.js` (`ALLOWED_ACTIONS`) for å
 unngå at klienten kan sende vilkårlige payloads. Utvid listen når du legger
-til nye knapper. Serveren legger til `triggeredAt` og `epoch` før kallet til n8n (se over).
+til nye knapper. Serveren legger til `type`, `triggeredAt` og `epoch` før kallet til n8n (se over).
 
 Responser:
 
@@ -139,6 +141,14 @@ Responser:
 - 502: n8n svarte med feil
 - 503: `N8N_WEBHOOK_URL` ikke satt
 - 504: timeout mot n8n
+
+### Knapp feiler mot n8n (403 / «Authorization data is wrong»)
+
+Da stemmer ikke header-navn eller -verdi mot **Header Auth** i n8n-webhook:
+
+- `N8N_WEBHOOK_AUTH_HEADER_NAME` må være **nøyaktig** det du skrev i feltet **Name** i n8n (f.eks. `N8N_AUTH_HEADER`).
+- `N8N_AUTH_HEADER` må være **nøyaktig** det du limte inn i feltet **Value** i n8n (ingen ekstra anførselstegn i Scalingo/`env`-verdien med mindre verdien faktisk skal inneholde dem).
+- Sjekk at du bruker **produksjons-URL** for webhook (ikke test) hvis flyten kun er aktiv der.
 
 ## Sikkerhetsmerknad
 
