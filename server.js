@@ -52,12 +52,14 @@ app.post('/api/trigger', async (req, res) => {
     const headers = { 'Content-Type': 'application/json' }
     if (N8N_AUTH_HEADER) headers[N8N_WEBHOOK_AUTH_HEADER_NAME] = N8N_AUTH_HEADER
 
+    const epoch = Date.now()
     const n8nRes = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         action,
-        triggeredAt: new Date().toISOString(),
+        triggeredAt: new Date(epoch).toISOString(),
+        epoch,
       }),
       signal: controller.signal,
     })

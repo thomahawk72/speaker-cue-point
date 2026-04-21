@@ -95,6 +95,23 @@ Scalingo vil da:
 `package.json` spesifiserer `"engines": { "node": ">=20" }`. Scalingo velger
 siste tilgjengelige LTS som matcher.
 
+## Kobling til n8n (knapp → flyt)
+
+1. Bruker trykker **Start** eller **Stopp** i `QueSignal`.
+2. Klienten sender `POST /api/trigger` med `{ "action": "cue_start" | "cue_stop" }`.
+3. Express videresender til `N8N_WEBHOOK_URL` med valgfri auth-header (se `.env.example`).
+4. **JSON til n8n-webhook** (samme felt hver gang):
+
+```json
+{
+  "action": "cue_start",
+  "triggeredAt": "2026-04-20T12:34:56.789Z",
+  "epoch": 1713616496789
+}
+```
+
+`epoch` er millisekunder siden Unix epoch (samme tidspunkt som `triggeredAt`).
+
 ## API
 
 ### `GET /api/health`
@@ -105,7 +122,7 @@ siste tilgjengelige LTS som matcher.
 
 ### `POST /api/trigger`
 
-Body:
+Body (fra nettleseren):
 
 ```json
 { "action": "cue_start" }
@@ -113,7 +130,7 @@ Body:
 
 Tillatte `action`-verdier er hardkodet i `server.js` (`ALLOWED_ACTIONS`) for å
 unngå at klienten kan sende vilkårlige payloads. Utvid listen når du legger
-til nye knapper.
+til nye knapper. Serveren legger til `triggeredAt` og `epoch` før kallet til n8n (se over).
 
 Responser:
 

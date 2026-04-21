@@ -20,7 +20,7 @@ const panels = [
     bullets: [
       'Knapper kaller en intern backend som videresender til n8n via en skjult webhook.',
       'Webhook-URL og eventuell autentisering holdes på serveren, ikke i nettleseren.',
-      'Svar fra n8n vises som kvittering i statusvinduet; feil vises i rødt.',
+      'Statusvinduet bekrefter når signalet er sendt; feilmeldinger fra server eller n8n vises i rødt.',
     ],
   },
 ]
