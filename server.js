@@ -4,8 +4,15 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-// Last .env fra prosjektmappa uansett cwd / startkommando (npm start, node server.js, osv.)
-dotenv.config({ path: path.join(__dirname, '.env') })
+// Lokalt: les .env fra prosjektmappa. På Scalingo settes variabler i process.env av plattformen
+// — ikke les .env fra disk (unngår at tom/feil fil overskygger eller forvirrer).
+const onScalingo = Boolean(process.env.SCALINGO_APPLICATION_ID)
+if (!onScalingo) {
+  dotenv.config({
+    path: path.join(__dirname, '.env'),
+    override: false,
+  })
+}
 
 const PORT = process.env.PORT || 3001
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL
@@ -111,6 +118,9 @@ if (process.env.NODE_ENV !== 'development') {
 
 app.listen(PORT, () => {
   console.log(`[server] lytter p\u00e5 http://localhost:${PORT}`)
+  if (onScalingo) {
+    console.log('[server] Scalingo: milj\u00f8variabler fra plattform (ingen .env-fil).')
+  }
   if (!N8N_WEBHOOK_URL) {
     console.warn('[server] ADVARSEL: N8N_WEBHOOK_URL er ikke satt \u2013 /api/trigger vil feile.')
   }

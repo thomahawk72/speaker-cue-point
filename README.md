@@ -24,8 +24,9 @@ browser ──(POST /api/trigger)──> Express (server.js) ──(POST)──>
    npm install
    ```
 
-2. Lag `.env` basert på `.env.example` (i prosjektmappen). `server.js` laster
-   den automatisk med `dotenv`, også når du kjører `npm start` eller `node server.js`.
+2. Lag `.env` basert på `.env.example` (i prosjektmappen). Lokalt laster
+   `server.js` den med `dotenv` (ikke på Scalingo – der brukes kun variabler fra
+   plattformen, se under).
 
    ```bash
    cp .env.example .env
@@ -72,6 +73,11 @@ scalingo -a <app> env-set N8N_WEBHOOK_AUTH_HEADER_NAME=N8N_AUTH_HEADER
 scalingo -a <app> env-set N8N_AUTH_HEADER="<samme verdi som i n8n Value>"
 scalingo -a <app> env-set NODE_ENV=production
 ```
+
+Miljø på Scalingo: legg **ikke** ved en `.env`-fil i repoet (den er i `.gitignore`).
+Serveren detekterer Scalingo via `SCALINGO_APPLICATION_ID` og leser **aldri**
+`.env` fra disk der – alle hemmeligheter settes med `scalingo env-set` eller
+dashboard.
 
 Viktig: `VITE_APP_PASSWORD` må være satt **før** deploy, fordi Vite inline-er
 den i klient-bundelen under `npm run build`. Endrer du passordet må appen
