@@ -1,36 +1,26 @@
 # Speaker Cue Point – Backend API
 
-Dette dokumentet beskriver det **offentlige HTTP-grensesnittet** til Speaker Cue Point-backend (Express på Scalingo eller lokalt). Det er dette andre tjenester og klienter skal forholde seg til.
-
-**Merk om ansvarslinjer i kodebasen:** Backend tar imot signalet, utvider det med bl.a. **epoch** og **type**, og videresender til en **intern** utgående integrasjon (miljøvariabel `N8N_WEBHOOK_URL`). Selve **lagring**, **deduplisering** og **forretningsregler** for historikk ligger **ikke** i `server.js` i dette repoet – de håndteres i det systemet backend kaller videre. Integratorer trenger **ikke** å kjenne til den kjeden; bruk kun API-et under.
-
----
+Dette dokumentet beskriver det **offentlige HTTP-grensesnittet** til Speaker Cue Point.
 
 ## Oversikt
 
 ```
-Annen tjeneste / nettleser  ──HTTPS──►  Speaker Cue Point (Scalingo)
-                                           │
-                                           └── intern videreføring (konfigureres på server)
+Klient ── HTTPS ──►  Speaker Cue Point API
 ```
 
-- Klienten kaller `**POST /api/trigger**` med `cue_start` eller `cue_stop`.
-- Serveren legger på metadata (bl.a. **epoch** i millisekunder, **type** `start`/`stopp`, **triggeredAt**).
-- Hemmeligheter for utgående kall finnes **kun** på serveren.
+- Klienten kaller `POST /api/trigger` med JSON-body som minst inneholder `action` (`cue_start` | `cue_stop`) og `**pressedAt**` – tidspunktet brukeren utløste handlingen (se under).
 
 ---
 
 ## Base-URL
 
 
-| Miljø                        | Eksempel                                                       |
-| ---------------------------- | -------------------------------------------------------------- |
-| Produksjon (Scalingo)        | `https://<app-navn>.scalingo.io` eller eget domene             |
-| Lokalt (backend direkte)     | `http://localhost:3001`                                        |
-| Lokalt (via Vite dev-server) | `http://localhost:5173` med sti `/api/...` (proxy til backend) |
+| Miljø                    | URL                                           |
+| ------------------------ | -------------------------------------------------- |
+| Produksjon (Scalingo)    | https://que-signal.osc-fr1.scalingo.io/ |
 
 
-Alle stier under er relative til base-URL (f.eks. `https://min-app.scalingo.io/api/trigger`).
+Alle stier under er relative til base-URL.
 
 ---
 
@@ -43,37 +33,58 @@ Sjekker at prosessen kjører og om utgående integrasjon er konfigurert på serv
 ```json
 {
   "ok": true,
-  "n8nConfigured": true
+  "n8nConfigured": true,
+  "triggerAuthRequired": true
 }
 ```
 
 
-| Felt            | Beskrivelse                                                                                                                                                |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ok`            | Alltid `true` når svaret er 200.                                                                                                                           |
-| `n8nConfigured` | `true` når miljøvariabelen for utgående webhook-URL er satt på serveren; `false` betyr at `POST /api/trigger` vil svare **503** inntil det er konfigurert. |
+| Felt                  | Beskrivelse                                                                                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ok`                  | Alltid `true` når svaret er 200.                                                                                                                           |
+| `n8nConfigured`       | `true` når miljøvariabelen for utgående webhook-URL er satt på serveren; `false` betyr at `POST /api/trigger` vil svare **503** inntil det er konfigurert. |
+| `triggerAuthRequired` | `true` når miljøvariabelen **`TRIGGER_API_KEY`** er satt på serveren – da må `POST /api/trigger` inkludere header **`X-API-Key`** med samme verdi (se under). |
 
 
 **curl**
 
 ```bash
-curl -sS https://<din-app>/api/health
+curl -sS https://<base-url>/api/health
 ```
 
 ---
 
 ## `POST /api/trigger`
 
-Sender et cue-signal inn i systemet. Backend utleder tid og type og videresender til intern pipeline.
+Sender et cue-signal inn i systemet.
 
 ### Forespørsel
 
 **Headers**
 
 
-| Header         | Verdi              |
-| -------------- | ------------------ |
-| `Content-Type` | `application/json` |
+| Header           | Verdi                                                             |
+| ---------------- | ----------------------------------------------------------------- |
+| `Content-Type`   | `application/json`                                                |
+| `X-API-Key`      | Påkrevd når serveren har `TRIGGER_API_KEY` satt – samme hemmelighet som i miljøvariabelen. |
+
+### API-nøkkel (`TRIGGER_API_KEY` / `X-API-Key`)
+
+Når **`TRIGGER_API_KEY`** er satt på backend (Scalingo miljø / `.env`), avvises `POST /api/trigger` uten gyldig header med **401** (`error`: `unauthorized`). Sammenligningen skjer med konstant tid (`lib/timingSafeEqual.js`).
+
+Når **`TRIGGER_API_KEY` ikke er satt**, kreves ingen `X-API-Key` (åpent endepunkt); server logger da en advarsel ved oppstart.
+
+**Speaker Cue Point-webappen** sender nøkkelen fra **`VITE_TRIGGER_API_KEY`** (samme verdi som `TRIGGER_API_KEY`), inlined ved Vite-build – på linje med `VITE_APP_PASSWORD`. Eksterne klienter sender `X-API-Key` i HTTP-header (se curl under).
+
+**Eksempel feilsvar 401**
+
+```json
+{
+  "ok": false,
+  "error": "unauthorized",
+  "message": "Manglende eller ugyldig API-nøkkel. Send header X-API-Key som matcher TRIGGER_API_KEY på serveren."
+}
+```
 
 
 **Body (JSON)**
@@ -95,6 +106,38 @@ Sender et cue-signal inn i systemet. Backend utleder tid og type og videresender
 
 - Ugyldig eller manglende `pressedAt` gir **400** (`invalid_pressed_at`).
 - Ugyldig `action` gir **400** (`unknown_action`).
+
+### Validering av `pressedAt`
+
+Implementert i `lib/parsePressedAt.js` (også dekket av `npm test`):
+
+
+| Innkommende `pressedAt`                                           | Resultat                                                |
+| ----------------------------------------------------------------- | ------------------------------------------------------- |
+| Endelig **tall**                                                  | Avrundes til nærmeste heltall ms og brukes som `epoch`. |
+| Ikke-tom **streng** som `Date.parse()` forstår (f.eks. ISO 8601)  | Tolkes til ms og brukes som `epoch`.                    |
+| Mangler, `null`, `NaN`, `±Infinity`, ugyldig streng, objekt, osv. | **400** `invalid_pressed_at`                            |
+
+
+Serverens feilmelding i body (felt `message`) kan brukes i klient; typisk tekst ved `invalid_pressed_at`: at `pressedAt` må være millisekunder (tall) eller ISO-8601-streng.
+
+**Eksempel feilsvar 400**
+
+```json
+{
+  "ok": false,
+  "error": "invalid_pressed_at",
+  "message": "pressedAt mangler eller er ugyldig. Send millisekunder siden Unix epoch (tall) eller ISO-8601-streng."
+}
+```
+
+```json
+{
+  "ok": false,
+  "error": "unknown_action",
+  "message": "Ukjent action. Tillatt: cue_start, cue_stop"
+}
+```
 
 ### Suksess **200**
 
@@ -123,6 +166,7 @@ Backend har mottatt forespørselen og utgående kall til intern integrasjon har 
 
 | HTTP | `error` (typisk)     | Forklaring                                                          |
 | ---- | -------------------- | ------------------------------------------------------------------- |
+| 401  | `unauthorized`       | Manglende eller feil `X-API-Key` når `TRIGGER_API_KEY` er satt       |
 | 400  | `unknown_action`     | Ugyldig eller manglende `action`                                    |
 | 400  | `invalid_pressed_at` | Manglende eller ugyldig `pressedAt`                                 |
 | 502  | `n8n_error`          | Utgående integrasjon returnerte ikke suksess; se `status` og `data` |
@@ -135,8 +179,19 @@ Backend har mottatt forespørselen og utgående kall til intern integrasjon har 
 
 ### curl
 
+Med API-nøkkel (anbefalt i produksjon når `TRIGGER_API_KEY` er satt):
+
 ```bash
-curl -sS -X POST 'https://<din-app>/api/trigger' \
+curl -sS -X POST 'https://<base-url>/api/trigger' \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: <din TRIGGER_API_KEY>' \
+  -d '{"action":"cue_start","pressedAt":1713616496789}'
+```
+
+Uten nøkkel-krav på server (kun utvikling / eldre oppsett):
+
+```bash
+curl -sS -X POST 'https://<base-url>/api/trigger' \
   -H 'Content-Type: application/json' \
   -d '{"action":"cue_start","pressedAt":1713616496789}'
 ```
@@ -150,8 +205,8 @@ curl -sS -X POST 'https://<din-app>/api/trigger' \
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base-URL        | Deployet Speaker Cue Point-instans (f.eks. Scalingo).                                                                                                                                 |
 | Transport       | HTTPS anbefales i produksjon.                                                                                                                                                         |
-| Kontrakt        | JSON-body med `action` og `pressedAt` (se over); ingen API-nøkkel i URL i standardoppsett.                                                                                            |
-| Sikkerhet       | Endepunktet er **åpent** for alle som kan nå URL-en (ingen innebygd API-nøkkel på `/api/trigger`). Begrens med nettverk, IP-tillatelser, eller innfør API-nøkkel i backend ved behov. |
+| Kontrakt        | JSON-body med `action` og `pressedAt` (se over).                                                                           |
+| API-nøkkel      | Sett **`TRIGGER_API_KEY`** på server og **`VITE_TRIGGER_API_KEY`** (samme verdi) før web-build for nettleserklient. Header **`X-API-Key`** på alle `POST /api/trigger` når server krever det (`triggerAuthRequired` via `/api/health`). |
 | Nye signaltyper | Krever endring av `ALLOWED_ACTIONS` i `server.js` (og vanligvis UI) – ikke bare konfigurasjon.                                                                                        |
 
 
@@ -160,16 +215,23 @@ curl -sS -X POST 'https://<din-app>/api/trigger' \
 ## Felter klient vs. videreføring (kun for forståelse)
 
 
-| Opprinnelse                            | Felt                  | Beskrivelse                                              |
-| -------------------------------------- | --------------------- | -------------------------------------------------------- |
-| Klient sender                          | `action`, `pressedAt` | Se tabell over.                                          |
-| Backend utleder til intern integrasjon | `type`                | `start` ved `cue_start`, `stopp` ved `cue_stop`.         |
-| Backend utleder                        | `epoch`               | Millisekunder fra `pressedAt` (avrundet hvis nødvendig). |
-| Backend utleder                        | `triggeredAt`         | ISO 8601 (UTC) som tilsvarer `epoch`.                    |
+| Opprinnelse                            | Felt                  | Beskrivelse                                                                                   |
+| -------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
+| Klient sender                          | `action`, `pressedAt` | Obligatorisk; se valideringstabell over.                                                      |
+| Backend utleder til intern integrasjon | `type`                | `start` ved `cue_start`, `stopp` ved `cue_stop`.                                              |
+| Backend utleder                        | `epoch`               | Samme tidsøyeblikk som gyldig `pressedAt` (avrundet tall fra klient eller ms fra ISO-streng). |
+| Backend utleder                        | `triggeredAt`         | `new Date(epoch).toISOString()` (UTC).                                                        |
 
+
+Videreførings-body mot intern webhook inneholder alltid `action`, `type`, `triggeredAt`, `epoch` – slik kan nedstrøms (f.eks. automatisering) stole på konsistent `epoch`/`triggeredAt` ut fra klientens opprinnelige tidspunkt.
 
 ---
 
 ## Versjon og kilde
 
-Tillatte `action`-verdier og payload-logikk er definert i `server.js`. Ved avvik mellom dette dokumentet og koden gjelder **koden**.
+- Tillatte `action`-verdier, API-nøkkel og HTTP-håndtering: `server.js`.
+- Tolking av `pressedAt`: `lib/parsePressedAt.js` (enhetstester i `test/parsePressedAt.test.js`, kjør `npm test`).
+- Konstant-tids sammenligning av nøkkel: `lib/timingSafeEqual.js`.
+- Klient som kaller backend: `src/lib/api.js` (sender `action`, `pressedAt`, og `X-API-Key` når `VITE_TRIGGER_API_KEY` er satt).
+
+Ved avvik mellom dette dokumentet og koden gjelder **koden**.

@@ -18,14 +18,21 @@ function messageFromTriggerError(data, httpStatus) {
   if (data?.error === 'invalid_pressed_at') {
     return data.message || 'Ugyldig tidspunkt (pressedAt).'
   }
+  if (data?.error === 'unauthorized') {
+    return data.message || 'API-nøkkel mangler eller er feil.'
+  }
   return `Feil (HTTP ${httpStatus})`
 }
 
 /** @param {number} pressedAt Millisekunder siden Unix epoch — tidspunkt da knappen ble trykket ned. */
 export async function triggerAction(action, pressedAt) {
+  const headers = { 'Content-Type': 'application/json' }
+  const apiKey = import.meta.env.VITE_TRIGGER_API_KEY
+  if (apiKey) headers['X-API-Key'] = apiKey
+
   const res = await fetch('/api/trigger', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ action, pressedAt }),
   })
 

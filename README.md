@@ -35,6 +35,8 @@ browser ──(POST /api/trigger)──> Express (server.js) ──(POST)──>
    Sett minst:
 
    - `VITE_APP_PASSWORD` – passord klient-siden sjekker mot (byggetid)
+   - `TRIGGER_API_KEY` – API-nøkkel for `POST /api/trigger` (server); må matche `X-API-Key`. Valgfritt å utelate lokalt (åpent endepunkt).
+   - `VITE_TRIGGER_API_KEY` – samme verdi som `TRIGGER_API_KEY`, inlined i klient ved build når du bruker nøkkel på server
    - `N8N_WEBHOOK_URL` – n8n-endepunktet server-siden skal POST-e mot
    - `N8N_AUTH_HEADER` (valgfritt) – hemmelig verdi som n8n Header Auth forventer (samme som i n8n-feltet Value)
    - `N8N_WEBHOOK_AUTH_HEADER_NAME` (valgfritt) – HTTP-header-navn, default `Authorization`; sett f.eks. `N8N_AUTH_HEADER` hvis n8n er konfigurert slik
@@ -67,6 +69,8 @@ Forutsetninger på appen (sett før første deploy):
 
 ```bash
 scalingo -a <app> env-set VITE_APP_PASSWORD=<passord>
+scalingo -a <app> env-set TRIGGER_API_KEY=<hemmelig-api-nøkkel>
+scalingo -a <app> env-set VITE_TRIGGER_API_KEY=<samme som TRIGGER_API_KEY>
 scalingo -a <app> env-set N8N_WEBHOOK_URL=https://<din-n8n>/webhook/...
 # valgfritt (må matche n8n Header Auth – navn + verdi):
 scalingo -a <app> env-set N8N_WEBHOOK_AUTH_HEADER_NAME=N8N_AUTH_HEADER
@@ -79,9 +83,9 @@ Serveren detekterer Scalingo via `SCALINGO_APPLICATION_ID` og leser **aldri**
 `.env` fra disk der – alle hemmeligheter settes med `scalingo env-set` eller
 dashboard.
 
-Viktig: `VITE_APP_PASSWORD` må være satt **før** deploy, fordi Vite inline-er
-den i klient-bundelen under `npm run build`. Endrer du passordet må appen
-re-bygges (Scalingo kjører build på hver deploy automatisk).
+Viktig: `VITE_APP_PASSWORD` og evt. `VITE_TRIGGER_API_KEY` må være satt **før**
+deploy, fordi Vite inline-er dem i klient-bundelen under `npm run build`.
+Endrer du disse må appen re-bygges (Scalingo kjører build på hver deploy automatisk).
 
 Deploy:
 

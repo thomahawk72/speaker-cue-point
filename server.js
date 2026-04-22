@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { parsePressedAtMs } from './lib/parsePressedAt.js'
+import { timingSafeEqualString } from './lib/timingSafeEqual.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Lokalt: les .env fra prosjektmappa. På Scalingo settes variabler i process.env av plattformen
@@ -23,6 +24,8 @@ const N8N_AUTH_HEADER = process.env.N8N_AUTH_HEADER
 const N8N_WEBHOOK_AUTH_HEADER_NAME =
   process.env.N8N_WEBHOOK_AUTH_HEADER_NAME || 'Authorization'
 const N8N_TIMEOUT_MS = Number(process.env.N8N_TIMEOUT_MS || 10000)
+/** Når satt, kreves header `X-API-Key` med samme verdi på `POST /api/trigger`. */
+const TRIGGER_API_KEY = process.env.TRIGGER_API_KEY
 
 // Hvilke knapp-id-er vi tillater \u00e5 proxy til n8n. Holdes bevisst
 // liten og eksplisitt for \u00e5 unngre at klienten kan sende vilk\u00e5rlige payloads.
@@ -35,10 +38,23 @@ app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
     n8nConfigured: Boolean(N8N_WEBHOOK_URL),
+    triggerAuthRequired: Boolean(TRIGGER_API_KEY),
   })
 })
 
 app.post('/api/trigger', async (req, res) => {
+  if (TRIGGER_API_KEY) {
+    const sent = req.get('x-api-key')
+    if (!timingSafeEqualString(sent ?? '', TRIGGER_API_KEY)) {
+      return res.status(401).json({
+        ok: false,
+        error: 'unauthorized',
+        message:
+          'Manglende eller ugyldig API-nøkkel. Send header X-API-Key som matcher TRIGGER_API_KEY p\u00e5 serveren.',
+      })
+    }
+  }
+
   const { action, pressedAt } = req.body || {}
 
   if (!action || typeof action !== 'string' || !ALLOWED_ACTIONS.has(action)) {
@@ -134,5 +150,10 @@ app.listen(PORT, () => {
   }
   if (!N8N_WEBHOOK_URL) {
     console.warn('[server] ADVARSEL: N8N_WEBHOOK_URL er ikke satt \u2013 /api/trigger vil feile.')
+  }
+  if (!TRIGGER_API_KEY) {
+    console.warn(
+      '[server] ADVARSEL: TRIGGER_API_KEY er ikke satt \u2013 POST /api/trigger er \u00e5pen uten API-n\u00f8kkel.',
+    )
   }
 })
