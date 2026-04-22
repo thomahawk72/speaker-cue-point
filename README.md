@@ -105,9 +105,9 @@ siste tilgjengelige LTS som matcher.
 ## Kobling til n8n (knapp → flyt)
 
 1. Bruker trykker **Start** eller **Stopp** i `QueSignal`.
-2. Klienten sender `POST /api/trigger` med `{ "action": "cue_start" | "cue_stop" }`.
+2. Klienten sender `POST /api/trigger` med `action` og `pressedAt` (tidspunkt for nedtrykk, ms eller ISO).
 3. Express videresender til `N8N_WEBHOOK_URL` med valgfri auth-header (se `.env.example`).
-4. **JSON til n8n-webhook** (samme felt hver gang):
+4. **JSON til n8n-webhook** (backend utleder `type`, `epoch` og `triggeredAt` fra `action` + klientens `pressedAt`):
 
 ```json
 {
@@ -118,7 +118,7 @@ siste tilgjengelige LTS som matcher.
 }
 ```
 
-`type` er `start` eller `stopp` (avledet fra `action`). `epoch` er millisekunder siden Unix epoch (samme tidspunkt som `triggeredAt`).
+`epoch`/`triggeredAt` reflekterer **pressedAt** fra klienten (tidspunkt for trykk), ikke serverens klokke ved send.
 
 ### Registrering i tabell `que_signals` (n8n)
 
@@ -140,6 +140,8 @@ La **siste rad** være den nyeste i tabellen (f.eks. `ORDER BY id DESC LIMIT 1` 
 
 ## API
 
+Backend-API for integratorer (`/api/health`, `/api/trigger`, curl): se [api.md](api.md).
+
 ### `GET /api/health`
 
 ```json
@@ -151,12 +153,10 @@ La **siste rad** være den nyeste i tabellen (f.eks. `ORDER BY id DESC LIMIT 1` 
 Body (fra nettleseren):
 
 ```json
-{ "action": "cue_start" }
+{ "action": "cue_start", "pressedAt": 1713616496789 }
 ```
 
-Tillatte `action`-verdier er hardkodet i `server.js` (`ALLOWED_ACTIONS`) for å
-unngå at klienten kan sende vilkårlige payloads. Utvid listen når du legger
-til nye knapper. Serveren legger til `type`, `triggeredAt` og `epoch` før kallet til n8n (se over).
+`pressedAt` er millisekunder siden Unix epoch for **nedtrykk** (ikke når ett sekunds hold er ferdig). Tillatte `action`-verdier er hardkodet i `server.js` (`ALLOWED_ACTIONS`). Serveren utleder `type`, `epoch` og `triggeredAt` før kallet til n8n (se over).
 
 Responser:
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const HOLD_MS = 1000
 
@@ -9,6 +9,8 @@ export default function CueButton({ label, onHoldComplete, loading, variant = 'p
   const firedRef = useRef(false)
   const buttonRef = useRef(null)
   const pointerCaptureIdRef = useRef(null)
+  /** Wall-clock ms når bruker trykte (ikke når hold fullføres). */
+  const pressedAtEpochMsRef = useRef(null)
   const onHoldCompleteRef = useRef(onHoldComplete)
 
   useEffect(() => {
@@ -43,32 +45,42 @@ export default function CueButton({ label, onHoldComplete, loading, variant = 'p
     releasePointerCaptureSafe()
   }, [clearRaf, releasePointerCaptureSafe])
 
-  const tick = useCallback(() => {
-    if (holdStartRef.current == null) return
-    const elapsed = performance.now() - holdStartRef.current
-    const p = Math.min(1, elapsed / HOLD_MS)
-    setHoldProgress(p)
-    if (p >= 1) {
-      if (!firedRef.current) {
-        firedRef.current = true
-        clearRaf()
-        holdStartRef.current = null
-        setHoldProgress(0)
-        releasePointerCaptureSafe()
-        onHoldCompleteRef.current()
+  const tickImplRef = useRef(() => {})
+
+  useLayoutEffect(() => {
+    tickImplRef.current = () => {
+      if (holdStartRef.current == null) return
+      const elapsed = performance.now() - holdStartRef.current
+      const p = Math.min(1, elapsed / HOLD_MS)
+      setHoldProgress(p)
+      if (p >= 1) {
+        if (!firedRef.current) {
+          firedRef.current = true
+          clearRaf()
+          holdStartRef.current = null
+          setHoldProgress(0)
+          releasePointerCaptureSafe()
+          const ts = pressedAtEpochMsRef.current
+          if (typeof ts === 'number') {
+            onHoldCompleteRef.current({ pressedAt: ts })
+          } else {
+            onHoldCompleteRef.current({ pressedAt: Date.now() })
+          }
+        }
+        return
       }
-      return
+      rafRef.current = requestAnimationFrame(() => tickImplRef.current())
     }
-    rafRef.current = requestAnimationFrame(tick)
   }, [clearRaf, releasePointerCaptureSafe])
 
   const startHold = useCallback(() => {
     if (loading) return
+    pressedAtEpochMsRef.current = Date.now()
     firedRef.current = false
     holdStartRef.current = performance.now()
     setHoldProgress(0)
-    rafRef.current = requestAnimationFrame(tick)
-  }, [loading, tick])
+    rafRef.current = requestAnimationFrame(() => tickImplRef.current())
+  }, [loading])
 
   const endHoldEarly = useCallback(() => {
     if (firedRef.current) {
@@ -81,7 +93,11 @@ export default function CueButton({ label, onHoldComplete, loading, variant = 'p
   useEffect(() => () => clearRaf(), [clearRaf])
 
   useEffect(() => {
-    if (loading) resetHold()
+    if (!loading) return
+    const id = requestAnimationFrame(() => {
+      resetHold()
+    })
+    return () => cancelAnimationFrame(id)
   }, [loading, resetHold])
 
   function onPointerDown(e) {

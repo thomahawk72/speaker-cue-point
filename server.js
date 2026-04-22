@@ -3,6 +3,8 @@ import express from 'express'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { parsePressedAtMs } from './lib/parsePressedAt.js'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Lokalt: les .env fra prosjektmappa. På Scalingo settes variabler i process.env av plattformen
 // — ikke les .env fra disk (unngår at tom/feil fil overskygger eller forvirrer).
@@ -37,13 +39,23 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.post('/api/trigger', async (req, res) => {
-  const { action } = req.body || {}
+  const { action, pressedAt } = req.body || {}
 
   if (!action || typeof action !== 'string' || !ALLOWED_ACTIONS.has(action)) {
     return res.status(400).json({
       ok: false,
       error: 'unknown_action',
       message: `Ukjent action. Tillatt: ${[...ALLOWED_ACTIONS].join(', ')}`,
+    })
+  }
+
+  const epoch = parsePressedAtMs(pressedAt)
+  if (epoch === null) {
+    return res.status(400).json({
+      ok: false,
+      error: 'invalid_pressed_at',
+      message:
+        'pressedAt mangler eller er ugyldig. Send millisekunder siden Unix epoch (tall) eller ISO-8601-streng.',
     })
   }
 
@@ -62,7 +74,6 @@ app.post('/api/trigger', async (req, res) => {
     const headers = { 'Content-Type': 'application/json' }
     if (N8N_AUTH_HEADER) headers[N8N_WEBHOOK_AUTH_HEADER_NAME] = N8N_AUTH_HEADER
 
-    const epoch = Date.now()
     const type = action === 'cue_start' ? 'start' : 'stopp'
     const n8nRes = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',

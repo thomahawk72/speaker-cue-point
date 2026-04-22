@@ -17,13 +17,13 @@ export default function QueSignal() {
     setHistory((prev) => [entry, ...prev].slice(0, HISTORY_SIZE))
   }
 
-  async function handleClick(btn) {
+  async function handleClick(btn, { pressedAt }) {
     setPending(btn.id)
     try {
-      await triggerAction(btn.id)
+      await triggerAction(btn.id, pressedAt)
       pushEntry({
         kind: 'ok',
-        text: `${btn.label} registrert · ${formatTime(new Date())}`,
+        text: `${btn.label} registrert · ${formatTime(new Date(pressedAt))}`,
       })
     } catch (err) {
       const msg = err?.data?.message || err?.message || 'Ukjent feil'
@@ -51,7 +51,7 @@ export default function QueSignal() {
             label={b.label}
             variant={b.variant}
             loading={pending === b.id}
-            onHoldComplete={() => handleClick(b)}
+            onHoldComplete={(payload) => handleClick(b, payload)}
           />
         ))}
       </div>

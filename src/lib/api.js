@@ -15,14 +15,18 @@ function messageFromTriggerError(data, httpStatus) {
   if (data?.error === 'unknown_action') {
     return data.message || 'Ukjent aksjon.'
   }
+  if (data?.error === 'invalid_pressed_at') {
+    return data.message || 'Ugyldig tidspunkt (pressedAt).'
+  }
   return `Feil (HTTP ${httpStatus})`
 }
 
-export async function triggerAction(action) {
+/** @param {number} pressedAt Millisekunder siden Unix epoch — tidspunkt da knappen ble trykket ned. */
+export async function triggerAction(action, pressedAt) {
   const res = await fetch('/api/trigger', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, pressedAt }),
   })
 
   let data = null
