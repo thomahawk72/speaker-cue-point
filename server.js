@@ -50,7 +50,7 @@ app.post('/api/trigger', async (req, res) => {
         ok: false,
         error: 'unauthorized',
         message:
-          'Manglende eller ugyldig API-nøkkel. Send header X-API-Key som matcher TRIGGER_API_KEY p\u00e5 serveren.',
+          'Manglende eller ugyldig API-nøkkel. Send header X-API-Key med den hemmeligheten som er konfigurert for denne instansen.',
       })
     }
   }
