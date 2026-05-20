@@ -10,15 +10,15 @@ Klient ── HTTPS ──►  Speaker Cue Point API
 
 - Klienten kaller `POST /api/trigger` med JSON-body som minst inneholder `action` (`cue_start` | `cue_stop`) og **`pressedAt`** – tidspunktet brukeren utløste handlingen (se under).
 
-
 ---
 
 ## Base-URL
 
 
-| Produksjon              | URL                      |
-| --------------------- | ------------------------ |
-| Scalingo     | `https://que-signal.osc-fr1.scalingo.io/` |
+| Produksjon | URL                                       |
+| ---------- | ----------------------------------------- |
+| Scalingo   | `https://que-signal.osc-fr1.scalingo.io/` |
+
 
 Alle stier under er relative til base-URL.
 
@@ -39,10 +39,10 @@ Sjekker at prosessen kjører og om utgående integrasjon er konfigurert på serv
 ```
 
 
-| Felt                  | Beskrivelse                                                                                                                                                |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ok`                  | Alltid `true` når svaret er 200.                                                                                                                           |
-| `n8nConfigured`       | `true` når miljøvariabelen for utgående webhook-URL er satt på serveren; `false` betyr at `POST /api/trigger` vil svare **503** inntil det er konfigurert. |
+| Felt                  | Beskrivelse                                                                                                                                                                       |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ok`                  | Alltid `true` når svaret er 200.                                                                                                                                                  |
+| `n8nConfigured`       | `true` når miljøvariabelen for utgående webhook-URL er satt på serveren; `false` betyr at `POST /api/trigger` vil svare **503** inntil det er konfigurert.                        |
 | `triggerAuthRequired` | `false`: **`X-API-Key`** er ikke påkrevd for `POST /api/trigger`. `true`: du **må** sende header **`X-API-Key`** med den avtalte hemmeligheten; manglende/feil verdi gir **401**. |
 
 
@@ -63,10 +63,11 @@ Sender et cue-signal inn i systemet.
 **Headers**
 
 
-| Header           | Verdi                                                             |
-| ---------------- | ----------------------------------------------------------------- |
-| `Content-Type`   | `application/json`                                                |
-| `X-API-Key`      | Påkrevd når **`triggerAuthRequired`** fra `GET /api/health` er `true` – bruk den oppgitte nøkkelen for denne instansen. |
+| Header         | Verdi                                                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `Content-Type` | `application/json`                                                                                                      |
+| `X-API-Key`    | Påkrevd når **`triggerAuthRequired`** fra `GET /api/health` er `true` – bruk den oppgitte nøkkelen for denne instansen. |
+
 
 ### API-nøkkel (`X-API-Key`)
 
@@ -86,14 +87,13 @@ Send **`X-API-Key`** i forespørselens header når health sier at autentisering 
 }
 ```
 
-
 **Body (JSON)**
 
 
-| Felt        | Type                  | Påkrevd | Beskrivelse                                                                                                                                                                                                                                             |
-| ----------- | --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `action`    | string                | ja      | `cue_start`, `cue_stop`                                                                                                                                                                                                                                 |
-| `pressedAt` | tall eller ISO-streng | ja      | Tidspunktet (nå!) som skal registreres. Tall = nøyaktig millisekunder siden Unix epoch (samme som JavaScript `Date.now()`). Alternativt ISO-8601-streng. |
+| Felt        | Type                  | Påkrevd | Beskrivelse                                                                                                                                              |
+| ----------- | --------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `action`    | string                | ja      | `cue_start`, `cue_stop`                                                                                                                                  |
+| `pressedAt` | tall eller ISO-streng | ja      | Tidspunktet brukeren **trykket** (ikke når forespørselen sendes). Tall = millisekunder siden Unix epoch (samme som JavaScript `Date.now()`). Alternativt ISO-8601-streng. Backend oversetter til `epoch` og `triggeredAt` (UTC) mot intern integrasjon. |
 
 
 ```json
@@ -108,6 +108,7 @@ Send **`X-API-Key`** i forespørselens header når health sier at autentisering 
 - Ugyldig `action` gir **400** (`unknown_action`).
 
 ### Validering av `pressedAt`
+
 
 | Innkommende `pressedAt`                                           | Resultat                                                |
 | ----------------------------------------------------------------- | ------------------------------------------------------- |
@@ -138,7 +139,7 @@ Serverens feilmelding i body (felt `message`) kan brukes i klient; typisk tekst 
 
 ### Suksess **200**
 
-Backend har mottatt forespørselen og har returnert OK.
+Backend har mottatt forespørselen og utgående kall til intern integrasjon har returnert OK.
 
 ```json
 {
@@ -161,15 +162,15 @@ Backend har mottatt forespørselen og har returnert OK.
 ### Feil
 
 
-| HTTP | `error` (typisk)     | Forklaring                                                          |
-| ---- | -------------------- | ------------------------------------------------------------------- |
+| HTTP | `error` (typisk)     | Forklaring                                                                               |
+| ---- | -------------------- | ---------------------------------------------------------------------------------------- |
 | 401  | `unauthorized`       | Manglende eller feil `X-API-Key` når health krever autentisering (`triggerAuthRequired`) |
-| 400  | `unknown_action`     | Ugyldig eller manglende `action`                                    |
-| 400  | `invalid_pressed_at` | Manglende eller ugyldig `pressedAt`                                 |
-| 502  | `n8n_error`          | Utgående integrasjon returnerte ikke suksess; se `status` og `data` |
-| 503  | `n8n_not_configured` | Utgående webhook-URL er ikke satt på serveren                       |
-| 504  | `n8n_timeout`        | Timeout mot utgående tjeneste (`N8N_TIMEOUT_MS`, standard 10 s)     |
-| 502  | `n8n_unreachable`    | Nettverks-/DNS-feil mot utgående tjeneste                           |
+| 400  | `unknown_action`     | Ugyldig eller manglende `action`                                                         |
+| 400  | `invalid_pressed_at` | Manglende eller ugyldig `pressedAt`                                                      |
+| 502  | `n8n_error`          | Utgående integrasjon returnerte ikke suksess; se `status` og `data`                      |
+| 503  | `n8n_not_configured` | Utgående webhook-URL er ikke satt på serveren                                            |
+| 504  | `n8n_timeout`        | Timeout mot utgående tjeneste (`N8N_TIMEOUT_MS`, standard 10 s)                          |
+| 502  | `n8n_unreachable`    | Nettverks-/DNS-feil mot utgående tjeneste                                                |
 
 
 *(Feilkode-navn som starter med `n8n_` er historiske fra implementasjonen; det beskriver fortsatt den utgående integrasjonen.)*
@@ -190,12 +191,12 @@ curl -sS -X POST 'https://<base-url>/api/trigger' \
 ## Integrasjon
 
 
-| Forutsetning    | Beskrivelse                                                                                                                                                                           |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Base-URL        | URL-en der dette API-et er tilgjengelig.                                                                                                                                              |
-| Transport       | HTTPS i produksjon.                                                                                                                                                         |
-| Kontrakt        | JSON-body med `action` og `pressedAt` (se over).                                                                                                                                     |
-| API-nøkkel      | Om instansen krever nøkkel, se **`triggerAuthRequired`** via `GET /api/health` og send **`X-API-Key`** etter avtale med drift.                                                              |
+| Forutsetning | Beskrivelse                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Base-URL     | URL-en der dette API-et er tilgjengelig.                                                                                       |
+| Transport    | HTTPS i produksjon.                                                                                                            |
+| Kontrakt     | JSON-body med `action` og `pressedAt` (se over).                                                                               |
+| API-nøkkel   | Om instansen krever nøkkel, se **`triggerAuthRequired`** via `GET /api/health` og send **`X-API-Key`** etter avtale med drift. |
 
 
 ---
