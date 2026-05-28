@@ -91,13 +91,16 @@ app.post('/api/trigger', async (req, res) => {
     if (N8N_AUTH_HEADER) headers[N8N_WEBHOOK_AUTH_HEADER_NAME] = N8N_AUTH_HEADER
 
     const type = action === 'cue_start' ? 'start' : 'stopp'
+    const triggeredAt = new Date(epoch).toISOString()
+    console.log(`[trigger] ${type} epoch=${epoch} triggeredAt=${triggeredAt}`)
+
     const n8nRes = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         action,
         type,
-        triggeredAt: new Date(epoch).toISOString(),
+        triggeredAt,
         epoch,
       }),
       signal: controller.signal,
