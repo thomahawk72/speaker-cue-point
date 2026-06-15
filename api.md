@@ -8,17 +8,18 @@ Dette dokumentet beskriver det **offentlige HTTP-grensesnittet** til Speaker Cue
 Klient ── HTTPS ──►  Speaker Cue Point API
 ```
 
-- Klienten kaller `POST /api/trigger` med JSON-body som minst inneholder `action` (`cue_start` | `cue_stop`) og **`pressedAt`** – tidspunktet brukeren utløste handlingen (se under).
+| Endepunkt | Formål |
+| --------- | ------ |
+| `GET /api/health` | Sjekker at tjenesten kjører og er konfigurert. |
+| `GET /api/signals` | Henter registrerte start/stopp-tidspunkter. |
+| `POST /api/trigger` | Sender et cue-signal (start eller stopp). |
 
 ---
 
 ## Base-URL
 
 
-| Produksjon | URL                                       |
-| ---------- | ----------------------------------------- |
-| Scalingo   | `https://que-signal.osc-fr1.scalingo.io/` |
-
+Erstatt `<base-url>` i eksemplene under med URL-en der API-et er deployet.
 
 Alle stier under er relative til base-URL.
 
@@ -50,6 +51,58 @@ Sjekker at prosessen kjører og om utgående integrasjon er konfigurert på serv
 
 ```bash
 curl -sS https://<base-url>/api/health
+```
+
+---
+
+## `GET /api/signals`
+
+Henter alle registrerte start/stopp-tidspunkter fra n8n.
+
+**Ingen headers påkrevd fra klient** – autentisering mot n8n skjer på serversiden.
+
+**Svar 200**
+
+```json
+{
+  "ok": true,
+  "signals": [
+    {
+      "id": 1,
+      "signaltype": "start",
+      "epoch": 1781430514000,
+      "start_rel": null,
+      "stop_rel": null,
+      "createdAt": "2026-06-14T09:48:37.433Z",
+      "updatedAt": "2026-06-14T09:48:37.433Z"
+    }
+  ]
+}
+```
+
+| Felt | Beskrivelse |
+| ---- | ----------- |
+| `signals[].id` | Løpenummer i `que_signals`-tabellen. |
+| `signals[].signaltype` | `start` eller `stopp`. |
+| `signals[].epoch` | Tidspunkt for trykk (ms siden Unix epoch, fra `pressedAt`). |
+| `signals[].start_rel` | Relativ tid – settes av n8n hvis konfigurert, ellers `null`. |
+| `signals[].stop_rel` | Relativ tid – settes av n8n hvis konfigurert, ellers `null`. |
+| `signals[].createdAt` | Tidspunkt da raden ble opprettet i n8n (ISO-8601 UTC). |
+| `signals[].updatedAt` | Tidspunkt for siste oppdatering av raden (ISO-8601 UTC). |
+
+**Feil**
+
+| HTTP | `error` | Forklaring |
+| ---- | ------- | ---------- |
+| 503 | `signals_not_configured` | `N8N_QUERY_URL` er ikke satt på serveren. |
+| 502 | `signals_error` | n8n returnerte ikke suksess. |
+| 504 | `signals_timeout` | Timeout mot n8n. |
+| 502 | `signals_unreachable` | Nettverks-/DNS-feil mot n8n. |
+
+**curl**
+
+```bash
+curl -sS 'https://<base-url>/api/signals'
 ```
 
 ---

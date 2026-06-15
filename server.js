@@ -24,6 +24,10 @@ const N8N_AUTH_HEADER = process.env.N8N_AUTH_HEADER
 const N8N_WEBHOOK_AUTH_HEADER_NAME =
   process.env.N8N_WEBHOOK_AUTH_HEADER_NAME || 'Authorization'
 const N8N_TIMEOUT_MS = Number(process.env.N8N_TIMEOUT_MS || 10000)
+/** URL til n8n-webhook som returnerer registrerte signaler (GET, basic auth). */
+const N8N_QUERY_URL = process.env.N8N_QUERY_URL
+const N8N_QUERY_USER = process.env.N8N_QUERY_USER ?? ''
+const N8N_QUERY_PASSWORD = process.env.N8N_QUERY_PASSWORD ?? ''
 /** Når satt, kreves header `X-API-Key` med samme verdi på `POST /api/trigger`. */
 const TRIGGER_API_KEY = process.env.TRIGGER_API_KEY
 
@@ -40,6 +44,50 @@ app.get('/api/health', (_req, res) => {
     n8nConfigured: Boolean(N8N_WEBHOOK_URL),
     triggerAuthRequired: Boolean(TRIGGER_API_KEY),
   })
+})
+
+app.get('/api/signals', async (_req, res) => {
+  if (!N8N_QUERY_URL) {
+    return res.status(503).json({
+      ok: false,
+      error: 'signals_not_configured',
+      message: 'N8N_QUERY_URL er ikke satt på serveren.',
+    })
+  }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), N8N_TIMEOUT_MS)
+
+  try {
+    const credentials = Buffer.from(`${N8N_QUERY_USER}:${N8N_QUERY_PASSWORD}`).toString('base64')
+    const n8nRes = await fetch(N8N_QUERY_URL, {
+      headers: { Authorization: `Basic ${credentials}` },
+      signal: controller.signal,
+    })
+
+    const text = await n8nRes.text()
+    let data
+    try {
+      data = text ? JSON.parse(text) : null
+    } catch {
+      data = { raw: text }
+    }
+
+    if (!n8nRes.ok) {
+      return res.status(502).json({ ok: false, error: 'signals_error', status: n8nRes.status, data })
+    }
+
+    return res.json({ ok: true, signals: data })
+  } catch (err) {
+    const isTimeout = err?.name === 'AbortError'
+    return res.status(isTimeout ? 504 : 502).json({
+      ok: false,
+      error: isTimeout ? 'signals_timeout' : 'signals_unreachable',
+      message: err?.message || String(err),
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
 })
 
 app.post('/api/trigger', async (req, res) => {
