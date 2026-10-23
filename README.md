@@ -103,8 +103,9 @@ Scalingo vil da:
 
 ### Node-versjon
 
-`package.json` spesifiserer `"engines": { "node": ">=20" }`. Scalingo velger
-siste tilgjengelige LTS som matcher.
+Node er låst til 24.22.x: `package.json` har `"engines": { "node": "24.22.x" }`
+(Scalingo velger siste patch i 24.22-serien), og `.nvmrc` (`24.22`) gjør det
+samme lokalt med `nvm use`.
 
 ## Kobling til n8n (knapp → flyt)
 
